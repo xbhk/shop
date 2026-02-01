@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 210 50% 97%;
+  --foreground: 220 18% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 18% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 18% 14%;
+  --primary: 186 62% 32%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 46 94% 90%;
+  --secondary-foreground: 220 18% 18%;
+  --muted: 210 32% 92%;
+  --muted-foreground: 220 12% 38%;
+  --accent: 18 88% 88%;
+  --accent-foreground: 18 40% 20%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214 20% 86%;
+  --input: 214 20% 86%;
+  --ring: 186 62% 32%;
+  --radius: 1rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  min-height: 100vh;
+}
+
+.bg-lab {
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(255, 230, 171, 0.6), transparent 42%),
+    radial-gradient(circle at 80% 10%, rgba(147, 215, 255, 0.55), transparent 40%),
+    radial-gradient(circle at 70% 70%, rgba(151, 240, 205, 0.45), transparent 45%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.7) 0,
+      rgba(255, 255, 255, 0.7) 2px,
+      transparent 2px,
+      transparent 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.7) 0,
+      rgba(255, 255, 255, 0.7) 2px,
+      transparent 2px,
+      transparent 40px
+    );
+}
+
+.section-title {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}

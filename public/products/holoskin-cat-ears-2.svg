@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffb97d"/>
+      <stop offset="60%" stop-color="#ffe6c8"/>
+      <stop offset="100%" stop-color="#ffd4a3"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#bg)" />
+  <rect x="60" y="60" width="680" height="480" rx="32" fill="rgba(255,255,255,0.35)" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
+  <text x="100" y="180" font-family="Arial, sans-serif" font-size="42" fill="#2d2d2d">HoloSkin</text>
+  <text x="100" y="240" font-family="Arial, sans-serif" font-size="20" fill="#3f3f3f">BuddyForge Collection</text>
+</svg>
