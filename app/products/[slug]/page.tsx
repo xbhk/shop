@@ -12,18 +12,22 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { products } from "@/lib/products";
+import { getProductBySlug } from "@/lib/db-queries";
+import { AddToCartButton } from "@/components/add-to-cart-button";
 
-export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export default function ProductPage({ params }: { params: { slug: string } }) {
-  const product = products.find((item) => item.slug === params.slug);
+  const product = getProductBySlug(params.slug);
 
   if (!product) {
     notFound();
   }
+
+  // Get thumbnail for display
+  const thumbnail = product.images && product.images.length > 0
+    ? product.images[0]
+    : "/products/snarkos-personality-pack.svg";
 
   return (
     <div className="space-y-10">
@@ -37,7 +41,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link href="/">{product.category}</Link>
+              <Link href={`/?catid=${product.catid}`}>{product.category}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -52,7 +56,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           <Card className="overflow-hidden">
             <CardContent className="p-0">
               <img
-                src={product.images[0]}
+                src={thumbnail}
                 alt={product.name}
                 className="h-[420px] w-full bg-gradient-to-br from-white via-secondary/40 to-accent/30 object-contain p-12"
               />
@@ -81,7 +85,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           </div>
           <div className="text-2xl font-semibold">{product.price}</div>
           <div className="flex flex-wrap gap-3">
-            <Button>Add to Cart</Button>
+            <AddToCartButton pid={product.pid} />
             <Button variant="outline">Save for later</Button>
           </div>
           <div className="rounded-lg border bg-white p-4">

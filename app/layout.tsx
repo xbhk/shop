@@ -3,6 +3,7 @@ import { Bungee, Space_Grotesk } from "next/font/google";
 
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
+import { CartProvider } from "@/lib/cart";
 
 const sans = Space_Grotesk({
   subsets: ["latin"],
@@ -30,16 +31,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sans.variable} ${display.variable} font-sans bg-lab`}>
-        <div className="min-h-screen">
-          <SiteHeader />
-          <main className="container py-10">{children}</main>
-          <footer className="border-t bg-white/80">
-            <div className="container flex flex-col gap-4 py-8 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-              <p>Phase 1 layout demo for IEMS5718. No AI was harmed in testing.</p>
-              <p>Designed by Limo (Lei Yiming) · Contact: shanshuilang0@gmail.com</p>
-            </div>
-          </footer>
-        </div>
+        <CartProvider>
+          <div className="min-h-screen">
+            <SiteHeader />
+            <main className="container py-10">{children}</main>
+            <footer className="border-t bg-white/80">
+              <div className="container flex flex-col gap-4 py-8 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+                <p>Phase 1 layout demo for IEMS5718. No AI was harmed in testing.</p>
+                <p>Designed by Limo (Lei Yiming) · Contact: shanshuilang0@gmail.com</p>
+              </div>
+            </footer>
+          </div>
+        </CartProvider>
       </body>
     </html>
   );

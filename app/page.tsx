@@ -6,14 +6,26 @@ import {
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-  BreadcrumbPage
+  BreadcrumbPage,
+  BreadcrumbSeparator
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { categories, featuredProducts } from "@/lib/products";
+import { getCategories, getProductsByCategory, getCategoryById } from "@/lib/db-queries";
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default function HomePage({
+  searchParams
+}: {
+  searchParams: { catid?: string };
+}) {
+  const catid = searchParams.catid ? parseInt(searchParams.catid) : undefined;
+  const categories = getCategories();
+  const products = getProductsByCategory(catid);
+  const currentCategory = catid ? getCategoryById(catid) : undefined;
+
   return (
     <div className="space-y-16">
       <section className="space-y-6">
@@ -24,9 +36,19 @@ export default function HomePage() {
                 <Link href="/">Home</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbItem>
-              <BreadcrumbPage>Buddy Store</BreadcrumbPage>
-            </BreadcrumbItem>
+            {currentCategory && (
+              <>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{currentCategory.name}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
+            )}
+            {!currentCategory && (
+              <BreadcrumbItem>
+                <BreadcrumbPage>Buddy Store</BreadcrumbPage>
+              </BreadcrumbItem>
+            )}
           </BreadcrumbList>
         </Breadcrumb>
 
@@ -45,15 +67,17 @@ export default function HomePage() {
               <Button variant="outline">Watch a demo</Button>
             </div>
           </div>
-          <Card className="overflow-hidden">
-            <CardContent className="p-0">
-              <img
-                src={featuredProducts[0]?.images[0]}
-                alt="BlinkBuddy Body Shell"
-                className="h-full w-full bg-gradient-to-br from-white via-secondary/40 to-accent/30 object-contain p-10"
-              />
-            </CardContent>
-          </Card>
+          {products.length > 0 && (
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <img
+                  src={products[0]?.images[0] || "/products/snarkos-personality-pack.svg"}
+                  alt={products[0]?.name || "Featured product"}
+                  className="h-full w-full bg-gradient-to-br from-white via-secondary/40 to-accent/30 object-contain p-10"
+                />
+              </CardContent>
+            </Card>
+          )}
         </div>
       </section>
 
@@ -125,23 +149,42 @@ export default function HomePage() {
       <section className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="section-title text-3xl font-semibold">Featured Modules</h2>
+            <h2 className="section-title text-3xl font-semibold">
+              {currentCategory ? currentCategory.name : "Featured Modules"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Tableless layout using flex and grid cards. Click a module to view details.
+              {currentCategory
+                ? `Showing products in ${currentCategory.name}`
+                : "Tableless layout using flex and grid cards. Click a module to view details."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <Badge key={category} variant="outline">
-                {category}
+            <Link href="/">
+              <Badge variant={!catid ? "default" : "outline"} className="cursor-pointer">
+                All
               </Badge>
+            </Link>
+            {categories.map((category) => (
+              <Link key={category.catid} href={`/?catid=${category.catid}`}>
+                <Badge
+                  variant={catid === category.catid ? "default" : "outline"}
+                  className="cursor-pointer"
+                >
+                  {category.name}
+                </Badge>
+              </Link>
             ))}
           </div>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+          {products.map((product) => (
+            <ProductCard key={product.pid} product={product} />
           ))}
+          {products.length === 0 && (
+            <p className="col-span-full text-center text-muted-foreground py-8">
+              No products found in this category.
+            </p>
+          )}
         </div>
       </section>
 
