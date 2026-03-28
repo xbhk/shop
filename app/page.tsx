@@ -71,7 +71,11 @@ export default function HomePage({
             <Card className="overflow-hidden">
               <CardContent className="p-0">
                 <img
-                  src={products[0]?.images[0] || "/products/snarkos-personality-pack.svg"}
+                  src={
+                    products[0]?.images[0]
+                    || products[0]?.thumbnail
+                    || "/products/snarkos-personality-pack.svg"
+                  }
                   alt={products[0]?.name || "Featured product"}
                   className="h-full w-full bg-gradient-to-br from-white via-secondary/40 to-accent/30 object-contain p-10"
                 />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCategories, insertCategory, updateCategory, deleteCategory } from "@/lib/db-queries";
+import { requireAdminCsrf } from "@/lib/security";
 
 // GET /api/categories - Get all categories
 export async function GET() {
@@ -15,6 +16,11 @@ export async function GET() {
 // POST /api/categories - Create new category
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
+
     const body = await request.json();
     const { name } = body;
 
@@ -24,6 +30,9 @@ export async function POST(request: NextRequest) {
 
     // Sanitize input
     const sanitizedName = name.trim().slice(0, 100);
+    if (!sanitizedName) {
+      return NextResponse.json({ error: "Category name cannot be empty" }, { status: 400 });
+    }
 
     const catid = insertCategory(sanitizedName);
     return NextResponse.json({ catid, name: sanitizedName }, { status: 201 });
@@ -36,21 +45,31 @@ export async function POST(request: NextRequest) {
 // PUT /api/categories - Update category
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { catid, name } = body;
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
 
-    if (!catid || !name) {
+    const body = await request.json();
+    const parsedCatid = Number(body.catid);
+    const { name } = body;
+
+    if (!Number.isInteger(parsedCatid) || parsedCatid <= 0 || !name) {
       return NextResponse.json({ error: "catid and name are required" }, { status: 400 });
     }
 
     const sanitizedName = name.trim().slice(0, 100);
-    const success = updateCategory(catid, sanitizedName);
+    if (!sanitizedName) {
+      return NextResponse.json({ error: "Category name cannot be empty" }, { status: 400 });
+    }
+
+    const success = updateCategory(parsedCatid, sanitizedName);
 
     if (!success) {
       return NextResponse.json({ error: "Category not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ catid, name: sanitizedName });
+    return NextResponse.json({ catid: parsedCatid, name: sanitizedName });
   } catch (error) {
     console.error("Error updating category:", error);
     return NextResponse.json({ error: "Failed to update category" }, { status: 500 });
@@ -60,14 +79,19 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/categories - Delete category
 export async function DELETE(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { catid } = body;
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
 
-    if (!catid) {
+    const body = await request.json();
+    const parsedCatid = Number(body.catid);
+
+    if (!Number.isInteger(parsedCatid) || parsedCatid <= 0) {
       return NextResponse.json({ error: "catid is required" }, { status: 400 });
     }
 
-    const success = deleteCategory(catid);
+    const success = deleteCategory(parsedCatid);
 
     if (!success) {
       return NextResponse.json({ error: "Category not found" }, { status: 404 });

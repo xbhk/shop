@@ -47,11 +47,16 @@ export function getProductsByCategory(catid?: number): Product[] {
     category: string;
   }>;
 
-  return products.map(p => ({
-    ...p,
-    highlights: p.highlights ? p.highlights.split("|") : [],
-    images: getProductImages(p.pid)
-  }));
+  return products.map((p) => {
+    const images = getProductImages(p.pid);
+
+    return {
+      ...p,
+      highlights: p.highlights ? p.highlights.split("|") : [],
+      thumbnail: getProductThumbnail(p.pid) ?? images[0],
+      images
+    };
+  });
 }
 
 // Get product by slug
@@ -75,10 +80,13 @@ export function getProductBySlug(slug: string): Product | undefined {
 
   if (!product) return undefined;
 
+  const images = getProductImages(product.pid);
+
   return {
     ...product,
     highlights: product.highlights ? product.highlights.split("|") : [],
-    images: getProductImages(product.pid)
+    thumbnail: getProductThumbnail(product.pid) ?? images[0],
+    images
   };
 }
 
@@ -103,10 +111,13 @@ export function getProductByPid(pid: number): Product | undefined {
 
   if (!product) return undefined;
 
+  const images = getProductImages(product.pid);
+
   return {
     ...product,
     highlights: product.highlights ? product.highlights.split("|") : [],
-    images: getProductImages(product.pid)
+    thumbnail: getProductThumbnail(product.pid) ?? images[0],
+    images
   };
 }
 
@@ -114,7 +125,7 @@ export function getProductByPid(pid: number): Product | undefined {
 export function getProductImages(pid: number): string[] {
   const images = db.prepare(`
     SELECT image_path FROM product_images
-    WHERE pid = ?
+    WHERE pid = ? AND is_thumbnail = 0
     ORDER BY sort_order
   `).all(pid) as Array<{ image_path: string }>;
 
@@ -126,6 +137,8 @@ export function getProductThumbnail(pid: number): string | undefined {
   const image = db.prepare(`
     SELECT image_path FROM product_images
     WHERE pid = ? AND is_thumbnail = 1
+    ORDER BY sort_order
+    LIMIT 1
   `).get(pid) as { image_path: string } | undefined;
 
   return image?.image_path;
@@ -147,9 +160,21 @@ export function updateCategory(catid: number, name: string): boolean {
 
 // Delete category
 export function deleteCategory(catid: number): boolean {
-  const stmt = db.prepare("DELETE FROM categories WHERE catid = ?");
-  const result = stmt.run(catid);
-  return result.changes > 0;
+  const category = db.prepare("SELECT catid FROM categories WHERE catid = ?").get(catid) as
+    | { catid: number }
+    | undefined;
+
+  if (!category) {
+    return false;
+  }
+
+  const deleteCategoryTransaction = db.transaction((categoryId: number) => {
+    db.prepare("DELETE FROM products WHERE catid = ?").run(categoryId);
+    db.prepare("DELETE FROM categories WHERE catid = ?").run(categoryId);
+  });
+
+  deleteCategoryTransaction(catid);
+  return true;
 }
 
 // Insert product

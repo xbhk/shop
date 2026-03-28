@@ -19,7 +19,7 @@ cp -r app "$DEPLOY_DIR/"
 cp -r components "$DEPLOY_DIR/"
 cp -r lib "$DEPLOY_DIR/"
 cp -r public "$DEPLOY_DIR/"
-mkdir -p "$DEPLOY_DIR/data"
+cp -r data "$DEPLOY_DIR/"
 cp package.json package-lock.json next.config.mjs tsconfig.json tailwind.config.ts postcss.config.js "$DEPLOY_DIR/"
 
 echo "=== Uploading to iems5718 ==="

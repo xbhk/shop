@@ -24,10 +24,10 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
     notFound();
   }
 
-  // Get thumbnail for display
-  const thumbnail = product.images && product.images.length > 0
-    ? product.images[0]
-    : "/products/snarkos-personality-pack.svg";
+  const galleryImages = product.images.length > 0
+    ? product.images
+    : [product.thumbnail || "/products/snarkos-personality-pack.svg"];
+  const mainImage = galleryImages[0];
 
   return (
     <div className="space-y-10">
@@ -56,14 +56,14 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           <Card className="overflow-hidden">
             <CardContent className="p-0">
               <img
-                src={thumbnail}
+                src={mainImage}
                 alt={product.name}
                 className="h-[420px] w-full bg-gradient-to-br from-white via-secondary/40 to-accent/30 object-contain p-12"
               />
             </CardContent>
           </Card>
           <div className="grid grid-cols-3 gap-3">
-            {product.images.slice(0, 3).map((image, index) => (
+            {galleryImages.slice(0, 3).map((image, index) => (
               <Card key={image} className={index === 0 ? "border-primary" : ""}>
                 <CardContent className="p-0">
                   <img

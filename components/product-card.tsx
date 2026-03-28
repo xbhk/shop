@@ -8,10 +8,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import type { Product } from "@/lib/products";
 
 export function ProductCard({ product }: { product: Product }) {
-  // Get thumbnail - prefer uploaded images, fallback to first image
-  const thumbnail = product.images && product.images.length > 0
-    ? product.images[0]
-    : "/products/snarkos-personality-pack.svg";
+  const thumbnail = product.thumbnail || product.images[0] || "/products/snarkos-personality-pack.svg";
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();

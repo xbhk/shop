@@ -56,6 +56,8 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [securityLoading, setSecurityLoading] = useState(true);
 
   // Category form state
   const [categoryName, setCategoryName] = useState("");
@@ -75,6 +77,81 @@ export default function AdminPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadPid, setUploadPid] = useState<number | null>(null);
+
+  const initializeSecurityContext = async () => {
+    setSecurityLoading(true);
+
+    try {
+      const res = await fetch("/api/security/csrf", {
+        cache: "no-store"
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to initialize admin security context");
+      }
+
+      const data = await res.json();
+
+      if (!data.csrfToken || typeof data.csrfToken !== "string") {
+        throw new Error("Server did not return a valid CSRF token");
+      }
+
+      setCsrfToken(data.csrfToken);
+    } catch (error) {
+      console.error("Error creating secure admin session:", error);
+      setCsrfToken(null);
+    } finally {
+      setSecurityLoading(false);
+    }
+  };
+
+  const ensureSecurityContext = () => {
+    if (csrfToken) {
+      return true;
+    }
+
+    alert(
+      securityLoading
+        ? "Secure admin session is still initializing. Please retry in a moment."
+        : "Secure admin session is unavailable. Refresh the page and try again."
+    );
+
+    return false;
+  };
+
+  const secureFetch = async (input: string, init: RequestInit = {}) => {
+    if (!csrfToken) {
+      throw new Error("Missing CSRF token");
+    }
+
+    const headers = new Headers(init.headers);
+    headers.set("X-CSRF-Token", csrfToken);
+
+    const response = await fetch(input, {
+      ...init,
+      headers,
+      cache: "no-store"
+    });
+
+    if (response.status === 403) {
+      await initializeSecurityContext();
+    }
+
+    return response;
+  };
+
+  const getErrorMessage = async (response: Response, fallback: string) => {
+    try {
+      const body = await response.json();
+      if (body?.error && typeof body.error === "string") {
+        return body.error;
+      }
+    } catch {
+      // Ignore JSON parsing errors and fall back to the caller-provided message.
+    }
+
+    return fallback;
+  };
 
   // Fetch data
   const fetchData = async () => {
@@ -96,6 +173,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    initializeSecurityContext();
     fetchData();
   }, []);
 
@@ -103,55 +181,70 @@ export default function AdminPage() {
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryName.trim()) return;
+    if (!ensureSecurityContext()) return;
 
     try {
-      const res = await fetch("/api/categories", {
+      const res = await secureFetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: categoryName })
       });
-      if (res.ok) {
-        setCategoryName("");
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to add category"));
       }
+
+      setCategoryName("");
+      fetchData();
     } catch (error) {
       console.error("Error adding category:", error);
+      alert(error instanceof Error ? error.message : "Failed to add category");
     }
   };
 
   const handleUpdateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory) return;
+    if (!ensureSecurityContext()) return;
 
     try {
-      const res = await fetch("/api/categories", {
+      const res = await secureFetch("/api/categories", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingCategory)
       });
-      if (res.ok) {
-        setEditingCategory(null);
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to update category"));
       }
+
+      setEditingCategory(null);
+      fetchData();
     } catch (error) {
       console.error("Error updating category:", error);
+      alert(error instanceof Error ? error.message : "Failed to update category");
     }
   };
 
   const handleDeleteCategory = async (catid: number) => {
     if (!confirm("Are you sure you want to delete this category?")) return;
+    if (!ensureSecurityContext()) return;
 
     try {
-      const res = await fetch("/api/categories", {
+      const res = await secureFetch("/api/categories", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ catid })
       });
-      if (res.ok) {
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to delete category"));
       }
+
+      fetchData();
     } catch (error) {
       console.error("Error deleting category:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete category");
     }
   };
 
@@ -159,10 +252,11 @@ export default function AdminPage() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.catid || !productForm.name || !productForm.price) return;
+    if (!ensureSecurityContext()) return;
 
     try {
       const slug = productForm.slug || productForm.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const res = await fetch("/api/products", {
+      const res = await secureFetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -171,21 +265,35 @@ export default function AdminPage() {
           highlights: productForm.highlights.split("\n").filter(Boolean)
         })
       });
-      if (res.ok) {
-        setProductForm({ pid: 0, catid: "", name: "", slug: "", price: "", tagline: "", description: "", highlights: "" });
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to add product"));
       }
+
+      setProductForm({
+        pid: 0,
+        catid: "",
+        name: "",
+        slug: "",
+        price: "",
+        tagline: "",
+        description: "",
+        highlights: ""
+      });
+      fetchData();
     } catch (error) {
       console.error("Error adding product:", error);
+      alert(error instanceof Error ? error.message : "Failed to add product");
     }
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+    if (!ensureSecurityContext()) return;
 
     try {
-      const res = await fetch("/api/products", {
+      const res = await secureFetch("/api/products", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -193,29 +301,38 @@ export default function AdminPage() {
           highlights: editingProduct.highlights
         })
       });
-      if (res.ok) {
-        setEditingProduct(null);
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to update product"));
       }
+
+      setEditingProduct(null);
+      fetchData();
     } catch (error) {
       console.error("Error updating product:", error);
+      alert(error instanceof Error ? error.message : "Failed to update product");
     }
   };
 
   const handleDeleteProduct = async (pid: number) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
+    if (!ensureSecurityContext()) return;
 
     try {
-      const res = await fetch("/api/products", {
+      const res = await secureFetch("/api/products", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pid })
       });
-      if (res.ok) {
-        fetchData();
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Failed to delete product"));
       }
+
+      fetchData();
     } catch (error) {
       console.error("Error deleting product:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete product");
     }
   };
 
@@ -223,28 +340,29 @@ export default function AdminPage() {
   const handleImageUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile || !uploadPid) return;
+    if (!ensureSecurityContext()) return;
 
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("pid", uploadPid.toString());
 
     try {
-      const res = await fetch("/api/upload", {
+      const res = await secureFetch("/api/upload", {
         method: "POST",
         body: formData
       });
-      if (res.ok) {
-        setSelectedFile(null);
-        setUploadPid(null);
-        fetchData();
-        alert("Image uploaded successfully!");
-      } else {
-        const error = await res.json();
-        alert(error.error || "Upload failed");
+
+      if (!res.ok) {
+        throw new Error(await getErrorMessage(res, "Upload failed"));
       }
+
+      setSelectedFile(null);
+      setUploadPid(null);
+      fetchData();
+      alert("Image uploaded successfully!");
     } catch (error) {
       console.error("Error uploading image:", error);
-      alert("Upload failed");
+      alert(error instanceof Error ? error.message : "Upload failed");
     }
   };
 
@@ -273,7 +391,16 @@ export default function AdminPage() {
           <h1 className="section-title text-3xl font-semibold">Admin Panel</h1>
           <p className="text-sm text-muted-foreground">Manage categories and products</p>
         </div>
-        <Badge variant="secondary">Admin Access</Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Admin Access</Badge>
+          <Badge variant={csrfToken ? "outline" : "secondary"}>
+            {securityLoading
+              ? "Securing Session"
+              : csrfToken
+                ? "Nonce Ready"
+                : "Nonce Failed"}
+          </Badge>
+        </div>
       </div>
 
       {loading ? (

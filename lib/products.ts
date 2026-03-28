@@ -7,6 +7,7 @@ export type Product = {
   price: string;
   tagline: string;
   description: string;
+  thumbnail?: string;
   images: string[];
   highlights: string[];
 };

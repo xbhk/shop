@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import type { Product } from "./products";
 
 type CartItem = {
   pid: number;
@@ -12,6 +11,9 @@ type CartItemWithProduct = CartItem & {
   name: string;
   price: string;
 };
+
+const LOADING_CART_PRICE = "$0.00";
+const LOADING_CART_NAME = "Loading product...";
 
 type CartContextType = {
   items: CartItemWithProduct[];
@@ -110,6 +112,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addItem = (pid: number) => {
+    let shouldFetch = false;
+
     setItems((prev) => {
       const existing = prev.find((item) => item.pid === pid);
       if (existing) {
@@ -118,30 +122,51 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
       }
 
-      // Fetch the new product and add to cart
-      fetch("/api/cart", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pids: [pid] })
-      })
-        .then((res) => res.json())
-        .then((products: Array<{ pid: number; name: string; price: string }>) => {
-          if (products.length > 0) {
-            setItems((current) => [
-              ...current,
-              {
-                pid,
-                quantity: 1,
-                name: products[0].name,
-                price: products[0].price
-              }
-            ]);
-          }
-        })
-        .catch(console.error);
-
-      return prev;
+      shouldFetch = true;
+      return [
+        ...prev,
+        {
+          pid,
+          quantity: 1,
+          name: LOADING_CART_NAME,
+          price: LOADING_CART_PRICE
+        }
+      ];
     });
+
+    if (!shouldFetch) {
+      return;
+    }
+
+    fetch("/api/cart", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pids: [pid] })
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Failed to fetch product info for cart");
+        }
+
+        const products: Array<{ pid: number; name: string; price: string }> = await res.json();
+        const product = products[0];
+
+        setItems((current) => {
+          if (!product) {
+            return current.filter((item) => item.pid !== pid);
+          }
+
+          return current.map((item) =>
+            item.pid === pid
+              ? { ...item, name: product.name, price: product.price }
+              : item
+          );
+        });
+      })
+      .catch((error) => {
+        console.error(error);
+        setItems((current) => current.filter((item) => item.pid !== pid));
+      });
   };
 
   const removeItem = (pid: number) => {

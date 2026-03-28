@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProductsByCategory, insertProduct, updateProduct, deleteProduct } from "@/lib/db-queries";
+import { requireAdminCsrf } from "@/lib/security";
 
 // GET /api/products - Get products (optionally filtered by category)
 export async function GET(request: NextRequest) {
@@ -18,17 +19,23 @@ export async function GET(request: NextRequest) {
 // POST /api/products - Create new product
 export async function POST(request: NextRequest) {
   try {
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
+
     const body = await request.json();
-    const { catid, name, slug, price, tagline, description, highlights } = body;
+    const parsedCatid = Number(body.catid);
+    const { name, slug, price, tagline, description, highlights } = body;
 
     // Validation
-    if (!catid || !name || !slug || !price) {
+    if (!Number.isInteger(parsedCatid) || parsedCatid <= 0 || !name || !slug || !price) {
       return NextResponse.json({ error: "catid, name, slug, and price are required" }, { status: 400 });
     }
 
     // Sanitize inputs
     const sanitizedData = {
-      catid: parseInt(catid),
+      catid: parsedCatid,
       name: name.trim().slice(0, 200),
       slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 200),
       price: price.trim().slice(0, 50),
@@ -36,6 +43,10 @@ export async function POST(request: NextRequest) {
       description: (description || "").trim().slice(0, 2000),
       highlights: Array.isArray(highlights) ? highlights.map((h: string) => h.trim().slice(0, 200)).filter(Boolean) : []
     };
+
+    if (!sanitizedData.name || !sanitizedData.slug || !sanitizedData.price) {
+      return NextResponse.json({ error: "catid, name, slug, and price are required" }, { status: 400 });
+    }
 
     const pid = insertProduct(sanitizedData);
     return NextResponse.json({ pid, ...sanitizedData }, { status: 201 });
@@ -48,15 +59,22 @@ export async function POST(request: NextRequest) {
 // PUT /api/products - Update product
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { pid, catid, name, slug, price, tagline, description, highlights } = body;
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
 
-    if (!pid) {
+    const body = await request.json();
+    const parsedPid = Number(body.pid);
+    const parsedCatid = Number(body.catid);
+    const { name, slug, price, tagline, description, highlights } = body;
+
+    if (!Number.isInteger(parsedPid) || parsedPid <= 0) {
       return NextResponse.json({ error: "pid is required" }, { status: 400 });
     }
 
     const sanitizedData = {
-      catid: parseInt(catid),
+      catid: parsedCatid,
       name: name.trim().slice(0, 200),
       slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 200),
       price: price.trim().slice(0, 50),
@@ -65,13 +83,17 @@ export async function PUT(request: NextRequest) {
       highlights: Array.isArray(highlights) ? highlights.map((h: string) => h.trim().slice(0, 200)).filter(Boolean) : []
     };
 
-    const success = updateProduct(pid, sanitizedData);
+    if (!Number.isInteger(parsedCatid) || parsedCatid <= 0 || !sanitizedData.name || !sanitizedData.slug || !sanitizedData.price) {
+      return NextResponse.json({ error: "pid, catid, name, slug, and price are required" }, { status: 400 });
+    }
+
+    const success = updateProduct(parsedPid, sanitizedData);
 
     if (!success) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ pid, ...sanitizedData });
+    return NextResponse.json({ pid: parsedPid, ...sanitizedData });
   } catch (error) {
     console.error("Error updating product:", error);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
@@ -81,14 +103,19 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/products - Delete product
 export async function DELETE(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { pid } = body;
+    const csrfError = requireAdminCsrf(request);
+    if (csrfError) {
+      return csrfError;
+    }
 
-    if (!pid) {
+    const body = await request.json();
+    const parsedPid = Number(body.pid);
+
+    if (!Number.isInteger(parsedPid) || parsedPid <= 0) {
       return NextResponse.json({ error: "pid is required" }, { status: 400 });
     }
 
-    const success = deleteProduct(pid);
+    const success = deleteProduct(parsedPid);
 
     if (!success) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
