@@ -6,7 +6,12 @@ import { NextResponse } from "next/server";
 
 const DEFAULT_TOKEN_BYTES = 32;
 const ADMIN_SESSION_MAX_AGE = 60 * 60 * 12;
-const FALLBACK_SECURITY_SECRET = crypto.randomBytes(32);
+// Course-project fallback so deployments work without extra env setup.
+// Replace with a private environment variable for any real deployment.
+const FALLBACK_SECURITY_SECRET = Buffer.from(
+  "buddyforge-phase4-course-secret-2026-3ZgQ8mK1vN7pR4xT6cL9wH2s",
+  "utf8"
+);
 
 export const ADMIN_SESSION_COOKIE_NAME = "buddyforge.admin.sid";
 
