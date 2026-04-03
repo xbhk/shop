@@ -1,10 +1,10 @@
 import "server-only";
 import Database from "better-sqlite3";
 import path from "path";
+import bcrypt from "bcryptjs";
 
 const dbPath = path.join(process.cwd(), "data", "shop.db");
 
-// Ensure data directory exists
 import fs from "fs";
 const dataDir = path.join(process.cwd(), "data");
 if (!fs.existsSync(dataDir)) {
@@ -13,7 +13,6 @@ if (!fs.existsSync(dataDir)) {
 
 const db = new Database(dbPath);
 
-// Enable foreign keys
 db.pragma("foreign_keys = ON");
 
 function getSeedImagePaths(slug: string) {
@@ -24,9 +23,7 @@ function getSeedImagePaths(slug: string) {
   ];
 }
 
-// Initialize database schema
 export function initDatabase() {
-  // Categories table
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       catid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +31,6 @@ export function initDatabase() {
     )
   `);
 
-  // Products table
   db.exec(`
     CREATE TABLE IF NOT EXISTS products (
       pid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,7 +45,6 @@ export function initDatabase() {
     )
   `);
 
-  // Product images table
   db.exec(`
     CREATE TABLE IF NOT EXISTS product_images (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,11 +55,89 @@ export function initDatabase() {
       FOREIGN KEY (pid) REFERENCES products(pid) ON DELETE CASCADE
     )
   `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      userid INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      name TEXT NOT NULL,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      session_id TEXT PRIMARY KEY,
+      userid INTEGER NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS orders (
+      order_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userid INTEGER NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      merchant_email TEXT NOT NULL,
+      salt TEXT NOT NULL,
+      digest TEXT NOT NULL,
+      total_price REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      stripe_session_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (userid) REFERENCES users(userid)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL,
+      pid INTEGER NOT NULL,
+      quantity INTEGER NOT NULL,
+      price_at_purchase REAL NOT NULL,
+      FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE,
+      FOREIGN KEY (pid) REFERENCES products(pid)
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      order_id INTEGER NOT NULL UNIQUE,
+      stripe_payment_intent TEXT,
+      amount REAL NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (order_id) REFERENCES orders(order_id) ON DELETE CASCADE
+    )
+  `);
 }
 
-// Seed initial data
+function seedUsers() {
+  const insertUser = db.prepare(
+    "INSERT OR IGNORE INTO users (email, password, name, is_admin) VALUES (?, ?, ?, ?)"
+  );
+
+  const defaultUsers = [
+    { email: "admin@buddyforge.com", password: "Admin123!", name: "Admin", is_admin: 1 },
+    { email: "user@buddyforge.com", password: "User123!", name: "Demo User", is_admin: 0 }
+  ];
+
+  for (const u of defaultUsers) {
+    const hash = bcrypt.hashSync(u.password, 12);
+    insertUser.run(u.email, hash, u.name, u.is_admin);
+  }
+}
+
 export function seedDatabase() {
   try {
+    seedUsers();
+
     const categories = [
       { name: "Bodies", products: [
         { name: "BlinkBuddy Body Shell", slug: "blinkbuddy-body", price: "$1200", tagline: "A friendly chassis with puppy eyes.", description: "A compact biped body built for kitchen banter and couch-side company, with soft joints and quiet motors.", highlights: "Height 1.4m|Mood ring LED|Self-cleaning vents" },

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Cpu, Settings } from "lucide-react";
+import { Cpu, Settings, User, LogIn } from "lucide-react";
 
 import { CartSheet } from "@/components/cart-sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -13,12 +14,14 @@ import {
   navigationMenuTriggerStyle
 } from "@/components/ui/navigation-menu";
 import { getCategories } from "@/lib/db-queries";
+import { getCurrentUser } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export function SiteHeader() {
   const categories = getCategories();
+  const user = getCurrentUser();
 
   const shopLinks = categories.map((category) => ({
     title: category.name,
@@ -77,23 +80,35 @@ export function SiteHeader() {
                   </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Link href="#" className={navigationMenuTriggerStyle()}>
-                    Personality Forge
-                  </Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Link href="/admin" className={navigationMenuTriggerStyle()}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Admin
-                  </Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
+              {user?.is_admin ? (
+                <NavigationMenuItem>
+                  <NavigationMenuLink asChild>
+                    <Link href="/admin" className={navigationMenuTriggerStyle()}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Admin
+                    </Link>
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              ) : null}
             </NavigationMenuList>
           </NavigationMenu>
+
+          {user ? (
+            <Link href="/account">
+              <Button variant="outline" size="sm" className="gap-2">
+                <User className="h-4 w-4" />
+                {user.name}
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/login">
+              <Button variant="outline" size="sm" className="gap-2">
+                <LogIn className="h-4 w-4" />
+                Login
+              </Button>
+            </Link>
+          )}
+
           <CartSheet />
         </nav>
       </div>

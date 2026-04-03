@@ -265,3 +265,205 @@ export function getProductsForCart(pids: number[]): Array<{ pid: number; name: s
   const query = `SELECT pid, name, price FROM products WHERE pid IN (${placeholders})`;
   return db.prepare(query).all(...pids) as Array<{ pid: number; name: string; price: string }>;
 }
+
+// ─── User queries ───
+
+export type DbUser = {
+  userid: number;
+  email: string;
+  password: string;
+  name: string;
+  is_admin: number;
+  created_at: string;
+};
+
+export function getUserByEmail(email: string): DbUser | undefined {
+  return db.prepare("SELECT * FROM users WHERE email = ?").get(email) as DbUser | undefined;
+}
+
+export function getUserById(userid: number): DbUser | undefined {
+  return db.prepare("SELECT * FROM users WHERE userid = ?").get(userid) as DbUser | undefined;
+}
+
+export function createUser(email: string, passwordHash: string, name: string): number {
+  const result = db
+    .prepare("INSERT INTO users (email, password, name) VALUES (?, ?, ?)")
+    .run(email, passwordHash, name);
+  return Number(result.lastInsertRowid);
+}
+
+export function updateUserPassword(userid: number, passwordHash: string): boolean {
+  const result = db
+    .prepare("UPDATE users SET password = ? WHERE userid = ?")
+    .run(passwordHash, userid);
+  return result.changes > 0;
+}
+
+// ─── Order queries ───
+
+export type DbOrder = {
+  order_id: number;
+  userid: number;
+  currency: string;
+  merchant_email: string;
+  salt: string;
+  digest: string;
+  total_price: number;
+  status: string;
+  stripe_session_id: string | null;
+  created_at: string;
+};
+
+export type DbOrderItem = {
+  id: number;
+  order_id: number;
+  pid: number;
+  quantity: number;
+  price_at_purchase: number;
+};
+
+export function createOrder(data: {
+  userid: number;
+  currency: string;
+  merchantEmail: string;
+  salt: string;
+  digest: string;
+  totalPrice: number;
+  stripeSessionId: string;
+  items: Array<{ pid: number; quantity: number; price: number }>;
+}): number {
+  const insertOrder = db.prepare(`
+    INSERT INTO orders (userid, currency, merchant_email, salt, digest, total_price, stripe_session_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertItem = db.prepare(`
+    INSERT INTO order_items (order_id, pid, quantity, price_at_purchase)
+    VALUES (?, ?, ?, ?)
+  `);
+
+  const tx = db.transaction(() => {
+    const result = insertOrder.run(
+      data.userid,
+      data.currency,
+      data.merchantEmail,
+      data.salt,
+      data.digest,
+      data.totalPrice,
+      data.stripeSessionId
+    );
+    const orderId = Number(result.lastInsertRowid);
+
+    for (const item of data.items) {
+      insertItem.run(orderId, item.pid, item.quantity, item.price);
+    }
+
+    return orderId;
+  });
+
+  return tx();
+}
+
+export function getOrderByStripeSession(stripeSessionId: string): DbOrder | undefined {
+  return db
+    .prepare("SELECT * FROM orders WHERE stripe_session_id = ?")
+    .get(stripeSessionId) as DbOrder | undefined;
+}
+
+export function getOrderById(orderId: number): DbOrder | undefined {
+  return db.prepare("SELECT * FROM orders WHERE order_id = ?").get(orderId) as DbOrder | undefined;
+}
+
+export function getOrderItems(orderId: number): DbOrderItem[] {
+  return db
+    .prepare("SELECT * FROM order_items WHERE order_id = ?")
+    .all(orderId) as DbOrderItem[];
+}
+
+export function updateOrderStatus(orderId: number, status: string): boolean {
+  const result = db
+    .prepare("UPDATE orders SET status = ? WHERE order_id = ?")
+    .run(status, orderId);
+  return result.changes > 0;
+}
+
+export function transactionExists(orderId: number): boolean {
+  const row = db
+    .prepare("SELECT id FROM transactions WHERE order_id = ?")
+    .get(orderId) as { id: number } | undefined;
+  return !!row;
+}
+
+export function createTransaction(data: {
+  orderId: number;
+  stripePaymentIntent: string;
+  amount: number;
+  status: string;
+}): void {
+  db.prepare(
+    "INSERT INTO transactions (order_id, stripe_payment_intent, amount, status) VALUES (?, ?, ?, ?)"
+  ).run(data.orderId, data.stripePaymentIntent, data.amount, data.status);
+}
+
+// ─── Admin order listing ───
+
+export type OrderWithItems = DbOrder & {
+  items: Array<DbOrderItem & { product_name: string }>;
+  user_email: string;
+  user_name: string;
+  transaction_status: string | null;
+};
+
+export function getAllOrders(): OrderWithItems[] {
+  const orders = db
+    .prepare(
+      `SELECT o.*, u.email as user_email, u.name as user_name,
+              t.status as transaction_status
+       FROM orders o
+       JOIN users u ON o.userid = u.userid
+       LEFT JOIN transactions t ON o.order_id = t.order_id
+       ORDER BY o.created_at DESC`
+    )
+    .all() as Array<DbOrder & { user_email: string; user_name: string; transaction_status: string | null }>;
+
+  const getItems = db.prepare(
+    `SELECT oi.*, p.name as product_name
+     FROM order_items oi
+     JOIN products p ON oi.pid = p.pid
+     WHERE oi.order_id = ?`
+  );
+
+  return orders.map((order) => ({
+    ...order,
+    items: getItems.all(order.order_id) as Array<DbOrderItem & { product_name: string }>
+  }));
+}
+
+// ─── Member order inquiry (last 5) ───
+
+export function getUserOrders(userid: number, limit: number = 5): OrderWithItems[] {
+  const orders = db
+    .prepare(
+      `SELECT o.*, u.email as user_email, u.name as user_name,
+              t.status as transaction_status
+       FROM orders o
+       JOIN users u ON o.userid = u.userid
+       LEFT JOIN transactions t ON o.order_id = t.order_id
+       WHERE o.userid = ?
+       ORDER BY o.created_at DESC
+       LIMIT ?`
+    )
+    .all(userid, limit) as Array<DbOrder & { user_email: string; user_name: string; transaction_status: string | null }>;
+
+  const getItems = db.prepare(
+    `SELECT oi.*, p.name as product_name
+     FROM order_items oi
+     JOIN products p ON oi.pid = p.pid
+     WHERE oi.order_id = ?`
+  );
+
+  return orders.map((order) => ({
+    ...order,
+    items: getItems.all(order.order_id) as Array<DbOrderItem & { product_name: string }>
+  }));
+}

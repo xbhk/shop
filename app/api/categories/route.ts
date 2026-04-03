@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCategories, insertCategory, updateCategory, deleteCategory } from "@/lib/db-queries";
 import { requireAdminCsrf } from "@/lib/security";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 // GET /api/categories - Get all categories
 export async function GET() {
@@ -17,9 +18,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const csrfError = requireAdminCsrf(request);
-    if (csrfError) {
-      return csrfError;
-    }
+    if (csrfError) return csrfError;
+    const user = getCurrentUserFromRequest(request);
+    if (!user?.is_admin) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const body = await request.json();
     const { name } = body;
@@ -46,9 +47,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const csrfError = requireAdminCsrf(request);
-    if (csrfError) {
-      return csrfError;
-    }
+    if (csrfError) return csrfError;
+    const user = getCurrentUserFromRequest(request);
+    if (!user?.is_admin) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const body = await request.json();
     const parsedCatid = Number(body.catid);
@@ -80,9 +81,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const csrfError = requireAdminCsrf(request);
-    if (csrfError) {
-      return csrfError;
-    }
+    if (csrfError) return csrfError;
+    const user = getCurrentUserFromRequest(request);
+    if (!user?.is_admin) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const body = await request.json();
     const parsedCatid = Number(body.catid);

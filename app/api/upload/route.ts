@@ -5,6 +5,7 @@ import path from "path";
 import sharp from "sharp";
 import { addProductImage } from "@/lib/db-queries";
 import { generateRandomUploadStem, requireAdminCsrf } from "@/lib/security";
+import { getCurrentUserFromRequest } from "@/lib/auth";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -21,9 +22,9 @@ const EXTENSION_BY_TYPE: Record<string, string> = {
 export async function POST(request: NextRequest) {
   try {
     const csrfError = requireAdminCsrf(request);
-    if (csrfError) {
-      return csrfError;
-    }
+    if (csrfError) return csrfError;
+    const user = getCurrentUserFromRequest(request);
+    if (!user?.is_admin) return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { ShoppingBag, Trash2, Minus, Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +17,73 @@ import {
 import { useCart } from "@/lib/cart";
 
 export function CartSheet() {
-  const { items, removeItem, updateQuantity, total, itemCount, isLoading } = useCart();
+  const { items, removeItem, updateQuantity, clearCart, total, itemCount, isLoading } = useCart();
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [csrfToken, setCsrfToken] = useState<string | null>(null);
+  const [user, setUser] = useState<{ userid: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/security/csrf", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setCsrfToken(d.csrfToken))
+      .catch(() => {});
+
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setUser(d.user))
+      .catch(() => {});
+  }, []);
 
   const handleQuantityChange = (pid: number, value: string) => {
     const qty = parseInt(value) || 0;
     updateQuantity(pid, qty);
+  };
+
+  const handleCheckout = async () => {
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (items.length === 0) return;
+
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
+        },
+        body: JSON.stringify({
+          items: items.map((item) => ({
+            pid: item.pid,
+            quantity: item.quantity
+          }))
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        alert(data.error || "Checkout failed");
+        return;
+      }
+
+      if (data.sessionUrl) {
+        clearCart();
+        window.location.href = data.sessionUrl;
+      }
+    } catch (error) {
+      console.error("Checkout error:", error);
+      alert("Checkout failed. Please try again.");
+    } finally {
+      setCheckoutLoading(false);
+    }
   };
 
   return (
@@ -106,7 +169,17 @@ export function CartSheet() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-semibold">${total.toFixed(2)}</span>
               </div>
-              <Button className="mt-4 w-full">Checkout</Button>
+              <Button
+                className="mt-4 w-full"
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+              >
+                {checkoutLoading
+                  ? "Processing..."
+                  : !user
+                    ? "Log in to Checkout"
+                    : "Checkout with Stripe"}
+              </Button>
             </div>
           </>
         )}
